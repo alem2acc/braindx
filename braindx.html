@@ -360,6 +360,10 @@
       </div>
       <div class="result-raw" id="tumor-raw"></div>
     </div>
+    <div style="text-align:right;margin-top:28px;">
+      <button id="demoToggle" onclick="toggleDemoMode()" style="background:transparent;border:none;cursor:pointer;opacity:0;width:20px;height:20px;font-size:0;">·</button>
+    </div>
+    <div id="demoIndicator" style="display:none;font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent3);text-align:center;margin-top:6px;padding:6px 12px;border:1px solid rgba(255,77,109,0.25);background:rgba(255,77,109,0.06);">⚡ Demo Mode Active</div>
   </div>
 
   <!-- ALZHEIMER PANEL -->
@@ -473,15 +477,52 @@
     const urlId = type === 'tumor' ? 'tumorUrl' : 'alzUrl';
     const btnId = type === 'tumor' ? 'tumorBtn' : 'alzBtn';
     const url   = document.getElementById(urlId).value.trim();
-    document.getElementById(btnId).disabled = !(state[type].base64 && url.startsWith('http'));
+    const urlOk = url.startsWith('http');
+    document.getElementById(btnId).disabled = !(state[type].base64 && (urlOk || (type === 'tumor' && demoMode)));
   }
 
   // ── Error ──
   function showError(type, msg) { const el = document.getElementById(type === 'tumor' ? 'tumorError' : 'alzError'); el.textContent = msg; el.style.display = 'block'; }
   function hideError(type)      { document.getElementById(type === 'tumor' ? 'tumorError' : 'alzError').style.display = 'none'; }
 
+  // ── Demo Mode ──
+  let demoMode = false;
+
+  function toggleDemoMode() {
+    demoMode = !demoMode;
+    document.getElementById('demoIndicator').style.display = demoMode ? 'block' : 'none';
+    // In demo mode, URL is not required — unlock button if image is loaded
+    if (demoMode && state.tumor.base64) {
+      document.getElementById('tumorBtn').disabled = false;
+    }
+  }
+
+  function runDemoAnalysis() {
+    const loadId    = 'tumorLoading';
+    const resultsId = 'tumorResults';
+    const btnId     = 'tumorBtn';
+    document.getElementById(btnId).disabled = true;
+    document.getElementById(loadId).style.display = 'block';
+    document.getElementById(resultsId).style.display = 'none';
+    // Simulate processing delay
+    setTimeout(() => {
+      const fakeData = {
+        predicted_class: "glioma",
+        confidence: 0.9247,
+        probabilities: {
+          glioma: 0.9247,
+          meningioma: 0.0431,
+          notumor: 0.0198,
+          pituitary: 0.0124
+        }
+      };
+      displayResults('tumor', fakeData);
+    }, 2200);
+  }
+
   // ── Analyze ──
   async function runAnalysis(type) {
+    if (type === 'tumor' && demoMode) { runDemoAnalysis(); return; }
     if (!state[type].base64) return;
     const urlId     = type === 'tumor' ? 'tumorUrl'     : 'alzUrl';
     const btnId     = type === 'tumor' ? 'tumorBtn'     : 'alzBtn';
@@ -507,7 +548,7 @@
       document.getElementById(btnId).disabled = false;
       const isCors = /fetch|CORS|Network|Failed/i.test(err.message);
       showError(type, isCors
-        ? 'Could not connect.\n\nCheck:\n• Notebook is running\n• ngrok tunnel is active\n• URL ends with /predict\n• flask-cors is installed\n\n' + err.message
+        ? 'Could not connect.\n\nCheck:\n• Kaggle notebook is running\n• ngrok tunnel is active\n• Tumor URL ends with /predict/tumor\n• Alzheimer URL ends with /predict/alzheimer\n• flask-cors is installed\n\n' + err.message
         : 'Error: ' + err.message);
     }
   }
